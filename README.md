@@ -3,24 +3,40 @@
 
 # Orientación ideológica de los Partidos Políticos en Uruguay
 
+*Nicolás Schmidt*
+
+> ***Resumen:*** El documento que sigue explora brevemente desde la
+> ciencia política las distintas maneras que se han utilizado para
+> identificar la orientación ideológica de los partidos políticos. Luego
+> de detectar posibles problemas con las mediciones actuales se provee
+> una manera alternativa utilizada en la literatura, pero, hasta ahora,
+> no utilizada para el caso uruguayo. Se implementa un escalamiento
+> multidimensional para reconstruir el espacio ideológico de los
+> partidos políticos a partir de votaciones nominales y de los discursos
+> parlamentarios de los legisladores. En este documento se detalla el
+> paso a paso de las decisiones metodológicas y la explicación del
+> código elaborada para cada etapa del análisis.
+
 <!-- badges: start -->
 <!-- badges: end -->
 
 ### Índice
 
-- [Introduccion](#introduccion)
-- [Contruccion de los datos](#contruccion-de-los-datos)
+- [Introducción](#introducción)
+- [Construcción de los datos](#construcción-de-los-datos)
   - [Paquete `speech`](#paquete-speech)
-    - [Extraccion de texto](#extraccion-de-texto)
-    - [Extraccion de votaciones
-      nominales](#extraccion-de-votaciones-nominales)
+    - [Extracción de texto](#extracción-de-texto)
+    - [Extracción de votaciones
+      nominales](#extracción-de-votaciones-nominales)
   - [Simulación de votaciones
     nominales](#simulación-de-votaciones-nominales)
 - [Modelos de escalamiento](#modelos-de-escalamiento)
 - [Análisis y visualización](#modelos-de-escalamiento)
 - [Discusión](#modelos-de-escalamiento)
+- [Referencias](#referencias)
+- [Notas](#notas)
 
-## Introduccion
+## Introducción
 
 La indagación en torno a la orientación ideológica de los partidos
 políticos en Uruguay ha permeado de manera implícita gran parte de la
@@ -72,15 +88,15 @@ adelante un escalamiento a partir de los discursos parlamentarios y
 cotejar la convergencia o divergencia entre el comportamiento a la hora
 de votar como a la hora de hablar. El trabajo se estructura en cuatro
 grandes secciones, una relativa a la construcción de los datos, otra
-relativa a el modelado de los datos, en tercer lugar una relativa al
+relativa a el modelado de los datos, en tercer lugar, una relativa al
 análisis y la visualización y por ultimo un apartado de discusión que
 permita cotejar los posibles aportes a esta agenda como los aspectos
 pendientes en los cuales se puede seguir avanzado.
 
-## Contruccion de los datos
+## Construcción de los datos
 
 Para poder llevar adelante la tarea propuesta es necesario contar con
-dos fuentes de datos. En primer lugar con las votaciones de los
+dos fuentes de datos. En primer lugar, con las votaciones de los
 legisladores en el congreso, y en segundo lugar el texto de lo que
 exponen en cada sesión.
 
@@ -104,7 +120,7 @@ defecto y una virtud. La virtud es que son asuntos que potencialmente
 dejan en evidencia las posiciones de los distintos actores (recordemos
 que un veto sucede cuando el Poder Ejecutivo rechaza en su totalidad o
 en parte un proyecto de ley sancionado por el congreso). A los efectos
-del objetivo del trabajo parece se una buena selección contar con los
+del objetivo del trabajo parece ser una buena selección contar con los
 vetos. La dificultad que tienen es que la democracia uruguaya no se
 caracteriza por utilizar esta potestad de forma recurrente. Es decir,
 los conflictos (si es que los hay) son dirimidos en instancias previas.
@@ -121,7 +137,7 @@ los diarios de sesión de una manera conjunta, replicable y reproducible.
 
 A tales efectos en conjunto con otros colegas hemos desarrollado un
 paquete de R que permite procesar y extraer la información necesaria
-para pode tener los datos para escalar. El paquete de R speech
+para poder tener los datos para escalar. El paquete de R speech
 implementa un algoritmo de recuperación de datos que permite hacer dos
 cosas:
 
@@ -130,13 +146,18 @@ cosas:
 
 ### Paquete speech
 
-#### Extraccion de texto
+#### Extracción de texto
 
 El siguiente código permite extraer el texto de un documento pdf en el
-que esta el registro de la sesión en donde cada fila es la intervención
+que está el registro de la sesión en donde cada fila es la intervención
 de un legislador. El algoritmo creado permite detectar tanto la
 distribución a dos columnas como el momento en el que un legislador
-particular va a hacer uso de la palabra.
+particular va a hacer uso de la palabra. EL resultado esperado es que
+cada fila de la matriz sea la intervención de un legislador en una
+sesión. <sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup>
+
+En el siguiente código se muestra cómo es el proceso de extracción de un
+diario y el resultado esperado:
 
 ``` r
 library(speech)
@@ -160,9 +181,24 @@ text
 #> # ℹ 14 more rows
 ```
 
-ACA EXTRACCION DEL TEXTO
+Para la extracción del texto de todos los diarios de sesión debemos
+utilizar otra función del paquete que permite establecer las fechas
+entre las que se desea buscar para obtener los enlaces a los diarios
+para iniciar la extraccion:
 
-Esta funcion permite ajustar nombres para emparejar con votos
+``` r
+links <- speech_url(chamber = "A", days = c("1985-03-1", "2010-02-15"))
+text <- speech::speech_build(links, compiler = T)
+```
+
+Una vez que tenemos el texto extraído debemos hacer un trabajo detallado
+con los nombres de los legisladores ya que lo que queremos es que juntar
+todo el texto que dicen en una sesión, por lo que puede que en algún
+lugar de la sesión el texto este dañado y no se recupere adecuadamente
+el nombre de un legislador, y puede que al compilar queden como dos
+legisladores cuando en realidad es uno solo. Para eso se elaboró una
+función con un patrón genérico y con casos específicos para ejecutar
+sobre el texto:
 
 <details>
 <summary>
@@ -348,12 +384,33 @@ return(o)
 
 </details>
 
-#### Extraccion de votaciones nominales
+Para completar el texto debemos ejecutar esta funciona y volver a
+compilar:
+
+``` r
+text$legislator <- parse_names(text$legislator)
+text <- speech::speech_recompiler(text)
+glimpse(text)
+```
+
+    #> Rows: 3,719
+    #> Columns: 8
+    #> $ legislator  <chr> "Aguirre Ramirez, Gonzalo", "Aguirre Corte, Numa", "Amaro …
+    #> $ legislature <int> 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42…
+    #> $ chamber     <chr> "ASAMBLEA GENERAL", "ASAMBLEA GENERAL", "ASAMBLEA GENERAL"…
+    #> $ date        <chr> "1986-01-07", "1986-01-07", "1986-01-07", "1986-01-07", "1…
+    #> $ id          <chr> "Diario_0025.txt", "Diario_0025.txt", "Diario_0025.txt", "…
+    #> $ speech      <chr> "SEÑOR AGUIRRE    Pido la palabra  SEÑOR AGUIRRE    Lo que…
+    #> $ party       <chr> "PN", "PN", "PC", "PC", "PN", "FA", "FA", "PC", "PC", "PN"…
+    #> $ doc_type    <chr> "html", "html", "html", "html", "html", "html", "html", "h…
+
+#### Extracción de votaciones nominales
 
 El código para detectar votaciones nominales elabora un conjunto de
 expresiones regulares que permiten detectar la presencia de votaciones
-nominales y elabora una estructura de datos en la que cada fila es un
-legislador con su correspondiente voto (Afirmativo o Negativo)
+nominales y construye una estructura de datos en la que cada fila es un
+legislador con su correspondiente voto (Afirmativo o Negativo), a modo
+de ejemplo:
 
 ``` r
 urls <- speech_url(chamber = "D", days = c("2002-06-12", "2004-04-14"))
@@ -391,12 +448,12 @@ summary(rollcall)
 Los modelos de escalamiento multidimensional son muy demandantes en
 datos para poder elaborar un espacio euclidiano. Esto representa un
 problema ya que las votaciones nominales asociadas a los vetos no son
-suficientes en todos las legislaturas como para obtener un escalamiento
+suficientes en todas las legislaturas como para obtener un escalamiento
 confiable. A este problema la literatura no ofrece soluciones evidentes,
 pero se han implementado distintas alternativas (como duplicar
 votaciones, a los efectos de solucionar el problema de la cantidad). En
 el caso particular hemos avanzado en una estrategia bayesiana que
-permite generar votaciones nominales pero aprendiendo de la elección
+permite generar votaciones nominales, pero aprendiendo de la elección
 anterior. Esto no es más que un proceso markoviano con un Gibbs
 sampling.
 
@@ -406,7 +463,7 @@ mantienen la misma distribución. En el siguiente apartado se presenta el
 código de este proceso en donde se elaboraron cuatro funciones que
 determinan la generación de las votaciones. La función principal es
 `aux1` que es la que elabora votaciones condicionado a la anterior y
-resuelve con la con la moda (`Mode`)como criterio de decision.
+resuelve con la con la moda (`Mode`) como criterio de decisión.
 
 <details>
 <summary>
@@ -427,7 +484,8 @@ aux1 <- function(x, vot, n){
         x[1,wid+1] <- ifelse(x[1,vot] != 0, Mode(x[which(x$LEMA == x$LEMA[1]), vot]), 0)
         for(j in 2:n){
                 x[,wid+j] <- x[,wid+j-1]
-                x[(j-len*(j%/%len))+1,wid+j] <- ifelse(x[(j-len*(j%/%len))+1,vot] != 0, Mode(x[which(x$LEMA == x$LEMA[(j-len*(j%/%len))+1]), vot]), 0)
+                x[(j-len*(j%/%len))+1,wid+j] <- ifelse(x[(j-len*(j%/%len))+1,vot] != 0, 
+                                                       Mode(x[which(x$LEMA == x$LEMA[(j-len*(j%/%len))+1]), vot]), 0)
         }
         return(x[,(wid+1):(wid+n)])
 }
@@ -471,14 +529,37 @@ wnuy <- function(data, legislature, run = numeric()){
 
 ### Votos
 
+El objetivo del modelado a partir de votaciones nominales es la
+construcción de un punto ideal para cada legislador. El punto ideal de
+un legislador refiere a su ubicación en un espacio de preferencias, dado
+el conjunto de preferencias de los demás legisladores. El marco espacial
+más simple para ordenar las preferencias de los legisladores, y en
+consecuencia de los partidos políticos, se compone de una única
+dimensión en donde los legisladores pueden ser ordenados en un continuo,
+por ejemplo, Izquierda-Derecha. En un espacio unidimensional, los puntos
+ideales se ubican en una línea imaginaria representando el continuo. En
+el caso de dos dimensiones, los puntos ideales se ubican en un plano en
+donde cada legislador representa la intersección de cada una de las
+dimensiones.
+
+El ordenamiento de las preferencias que culminan en el punto ideal de un
+legislador es afectado por dos factores. En primer lugar, por la
+cantidad de dimensiones que están en juego en la reconstrucción del
+espacio político, y en segundo lugar por los legisladores de referencia
+(también llamado *polarity*) que se tiene para cada dimensión. Uno de
+los principales objetivos de la estimación de puntos ideales es obtener
+una salida gráfica que permita observar la distribución de estos en un
+plano de una o más dimensiones. En el Gráfico 1 se presenta una parte
+del panel gráfico que por defecto contiene el paquete de R *wnominate*.
+
 El escalamiento a partir de votaciones nominales es bastante flexible
 para ser un modelo supervisado. La única restricción que presenta es que
 se debe establecer es que al menos informe quien es el legislador que va
 a actuar como ‘polar’. Esto es, el legislador que por sus
-características puede ser considerado que esta en uno de los extremos
+características puede ser considerado que está en uno de los extremos
 del espectro por el criterio que el investigador considere. Una
 dificulta que aparece en estos casos es que el criterio (por ejemplo,
-que el legislador seleccionado sea el mas de izquierda) no siempre esté
+que el legislador seleccionado sea el más de izquierda) no siempre esté
 presente en las votaciones o tenga muy pocas votaciones por lo que la
 referencia de ese legislador se vuelve sesgada. En estos casos es
 posible establecer como polar al que se pueda considerar más de derecha
@@ -1066,13 +1147,13 @@ write.xlsx(coord, file = "all_coord_G_O.xlsx", sheetName = "coord_L46", row.name
 
 En el caso del uso de texto como fuente da datos el proceso es similar
 al escalamiento con votos. Dado que el proceso comunicacional es mucho
-más costosos vamos a concentrarnos en las legislaturas desde 1985 hasta
+más costoso vamos a concentrarnos en las legislaturas desde 1985 hasta
 2010. Los modelos que vamos a utilizar son dos: uno supervisado y otro
 no supervisado. El modelo supervisado utiliza polares pero que son
 referencia para iniciar el escalamiento. Lo que se usa de referencia en
 estos modelos es el texto que fue dicho por ese legislador de
 referencia. En el caso de los modelos no supervisados el escalamiento es
-más perezoso ya que no usa referencia sino que selecciona uno al azar y
+más perezoso ya que no usa referencia, sino que selecciona uno al azar y
 se van ajustando a medida que van ingresado datos al modelo.
 
 El código que le sigue son las funciones que se desarrollaron para
@@ -1174,9 +1255,6 @@ ws_uy <- function(data, legislature){
 }
 
 
-
-
-
 wfish <- function(data, legislature){
 
      base <- data
@@ -1275,4 +1353,96 @@ ggplot(lfin2) +
               legend.key.size = unit(0.3, "cm"))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
+## Referencias
+
+Armstrong, D. A., Bakker, R., Carroll, R., Hare, C., Poole, K.
+T.,Rosenthal, H. et al. (2014). Analyzing spatial models of choice and
+judgmentwith R. CRC Press.
+
+Black, D., Newing, R. A., McLean, I., McMillan, A. y Monroe, B.
+L.(1958). The theory of committees and elections. Springer .
+
+Br̈auninger, T., Debus, M. y Muller, J. (2013). Estimating policy
+positions of political actors across countries and time. Working Paper .
+
+Castillo, M. y Pérez, V. (2009). Esencia y espacio: análisis de los
+programas del frente amplio y del partido nacional en las elecciones
+nacionales de 2009.
+
+Daniel Buquet y Niki Johnson Del Cambio a la Continuidad. Ciclo
+electoral 2010, 105–131.
+
+Clinton, J., Jackman, S. y Rivers, D. (2004). The statistical analysis
+of rollcall data. American Political Science Review 98(2), 355–370.
+
+Downs, A. (1957). An economic theory of political action in a democracy.
+Journal of Political Economy 65(2), 135–150.
+
+Gelman, A., Bafumi, J., Park, D. K. y Kaplan, N. (2005). Practical
+issues in implementing and understanding bayesian ideal point
+estimation. Political Analysis 13(13), 171–187. URL
+<http://www.stat.columbia.edu/~gelman/research/published/171.pdf>.
+
+Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A.
+yRubin, D. B. (2014). Bayesian data analysis, vol. 2. CRC press Boca
+Raton,FL.
+
+Guedes, A., Luján, D. y Kardjian, N. (2011). Presidentes, partidos e
+ideología en Uruguay (1920-2009). DOL (Documento On-line)/FCS-CP;
+01/11URL
+<https://www.colibri.udelar.edu.uy/bitstream/123456789/4605/1/DOL%20CP%2001%2011.pdf>.
+
+Hinich, M. J. y Munger, M. C. (1997). Analytical politics. Cambridge
+University Press.
+
+ICP, I. d. C. P. F. d. C. (). Encuesta de Elites. UdelaR.
+
+Jackman, S. (2008). pscl: classes and methods for r developed in the
+political science computational laboratory
+
+Jackman, S. (2009). Bayesian analysis for the social sciences, vol. 846.
+John Wiley & Sons.
+
+Kruschke, J. (2014). Doing Bayesian data analysis: A tutorial with R,
+JAGS, and Stan. Academic Press.
+
+Laver, M. y Garry, J. (2000). Estimating policy positions from political
+texts. American Journal of Political Science , 619–634.
+
+PELA-USAL, M., Alcantara (). Encuesta Permanente de Elites. Universidad
+de Salamanca.
+
+Poole, K., Lewis, J., Lo, J. y Carroll, R. (2011). Scaling roll call
+votes with wnominate in R. Journal of Statistical Software 42(14), 1–21.
+URL http: //www.jstatsoft.org/v42/i14/.
+
+Poole, K., Lewis, J., Lo, J. y Carroll, R. (2016a). oc: OC Roll Call
+Analysis Software. URL <https://CRAN.R-project.org/package=oc>. R
+package version 0.96.
+
+Poole, K., Lewis, J., Rosenthal, H., Lo, J. y Carroll, R. (2016b).
+Re-covering a basic space from issue scales in R. Journal of Statistical
+Software 69(7), 1–21.
+
+R Core Team (2017). R: A Language and Environment for Statistical
+Computing. R Foundation for Statistical Computing, Vienna, Austria. URL
+<https://www.R-project.org/>.
+
+Volkens, A., Bara, J., Budge, I., McDonald, M. D. y Klingemann,
+
+HD. (2013). Mapping policy preferences from texts: statistical solutions
+for manifesto analysts, vol. 3. OUP Oxford.
+
+## Notas
+
+------------------------------------------------------------------------
+
+<sup><a id="fn.1" href="#fnr.1">1</a></sup> En este
+[link](https://nicolas-schmidt.github.io/speech/index.html) se encuentra
+el manual y el código fuente del paquete de R desarrollado. En este
+[link](https://github.com/Nicolas-Schmidt/speech-ejemplos) se encuentra
+un repositorio con ejemplos de uso y cómo solucionar problemas de
+extracción de texto que es difícil recuperar por las condiciones del
+documento.
